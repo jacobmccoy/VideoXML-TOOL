@@ -1,14 +1,17 @@
 """
 Vercel Serverless Function: FCPXML Conform
 Accepts two FCPXML files (base64-encoded in JSON body), returns conformed FCPXML.
+Supports direct .fcpxml files or zipped .fcpxmld bundles.
 """
 
 from http.server import BaseHTTPRequestHandler
 import base64
 import importlib.util
+import io
 import json
 import os
 import traceback
+import zipfile
 
 # Load conform_core via importlib to avoid sys.path issues on Vercel
 _core_path = os.path.join(os.path.dirname(__file__), "..", "lib", "conform_core.py")
@@ -16,6 +19,28 @@ _spec = importlib.util.spec_from_file_location("conform_core", _core_path)
 _conform_core = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_conform_core)
 conform_from_strings = _conform_core.conform_from_strings
+
+
+def _extract_fcpxml(raw_bytes):
+    """Extract FCPXML content from raw bytes.
+    Handles direct XML files and zipped .fcpxmld bundles."""
+    # Check for zip magic bytes (PK)
+    if raw_bytes[:2] == b'PK':
+        with zipfile.ZipFile(io.BytesIO(raw_bytes)) as zf:
+            # Look for Info.fcpxml inside the zip (standard .fcpxmld bundle structure)
+            for name in zf.namelist():
+                if name.endswith('Info.fcpxml'):
+                    return zf.read(name).decode('utf-8')
+            # Fallback: any .fcpxml file
+            for name in zf.namelist():
+                if name.endswith('.fcpxml'):
+                    return zf.read(name).decode('utf-8')
+            raise ValueError(
+                "No .fcpxml file found inside the zip. "
+                "Expected a zipped .fcpxmld bundle containing Info.fcpxml."
+            )
+    # Direct XML
+    return raw_bytes.decode('utf-8')
 
 
 def _json_response(handler, status, body):
@@ -42,8 +67,8 @@ class handler(BaseHTTPRequestHandler):
                 })
                 return
 
-            original_xml = base64.b64decode(data['original']).decode('utf-8')
-            edit_xml = base64.b64decode(data['edit']).decode('utf-8')
+            original_xml = _extract_fcpxml(base64.b64decode(data['original']))
+            edit_xml = _extract_fcpxml(base64.b64decode(data['edit']))
 
             result_xml, log_lines = conform_from_strings(original_xml, edit_xml)
 

@@ -188,21 +188,21 @@
         <div class="upload-section">
             <label>Original Multitrack FCPXML</label>
             <div class="drop-zone" id="originalZone">
-                <input type="file" accept=".fcpxml,.xml" id="originalFile">
+                <input type="file" accept=".fcpxml,.xml,.zip" id="originalFile">
                 <span class="prompt" id="originalPrompt">Drop file or click to browse</span>
                 <span class="filename" id="originalName" style="display:none"></span>
             </div>
-            <p class="hint">The full multitrack timeline exported from Resolve (.fcpxml file, not .fcpxmld bundle)</p>
+            <p class="hint">Export from Resolve as .fcpxml, or zip the .fcpxmld bundle and upload the .zip</p>
         </div>
 
         <div class="upload-section">
             <label>Edited Reference FCPXML</label>
             <div class="drop-zone" id="editZone">
-                <input type="file" accept=".fcpxml,.xml" id="editFile">
+                <input type="file" accept=".fcpxml,.xml,.zip" id="editFile">
                 <span class="prompt" id="editPrompt">Drop file or click to browse</span>
                 <span class="filename" id="editName" style="display:none"></span>
             </div>
-            <p class="hint">The edited single-track reference (if .fcpxmld bundle, upload Info.fcpxml from inside)</p>
+            <p class="hint">The edited reference print (.fcpxml, or zipped .fcpxmld bundle)</p>
         </div>
 
         <button class="primary" id="conformBtn" disabled>Conform Timeline</button>
@@ -289,19 +289,34 @@
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = () => {
-                    // Validate that it looks like XML
-                    const text = reader.result;
-                    if (!text.trim().startsWith('<?xml') && !text.trim().startsWith('<fcpxml')) {
+                    const bytes = new Uint8Array(reader.result);
+                    if (bytes.length === 0) {
                         reject(new Error(
-                            `"${file.name}" doesn't look like an FCPXML file. ` +
-                            'If you have a .fcpxmld bundle, open the folder and upload the Info.fcpxml file inside.'
+                            `"${file.name}" is empty. If this is a .fcpxmld bundle, ` +
+                            'zip it first and upload the .zip file.'
                         ));
                         return;
                     }
-                    resolve(btoa(text));
+                    // Check for zip (PK magic bytes) or XML
+                    const isZip = bytes[0] === 0x50 && bytes[1] === 0x4B;
+                    const textStart = new TextDecoder().decode(bytes.slice(0, 100)).trim();
+                    const isXml = textStart.startsWith('<?xml') || textStart.startsWith('<fcpxml');
+                    if (!isZip && !isXml) {
+                        reject(new Error(
+                            `"${file.name}" doesn't look like an FCPXML or zip file. ` +
+                            'If you have a .fcpxmld bundle, zip it first and upload the .zip.'
+                        ));
+                        return;
+                    }
+                    // Convert ArrayBuffer to base64
+                    let binary = '';
+                    for (let i = 0; i < bytes.length; i++) {
+                        binary += String.fromCharCode(bytes[i]);
+                    }
+                    resolve(btoa(binary));
                 };
                 reader.onerror = () => reject(new Error(`Failed to read "${file.name}"`));
-                reader.readAsBinaryString(file);
+                reader.readAsArrayBuffer(file);
             });
         }
 
