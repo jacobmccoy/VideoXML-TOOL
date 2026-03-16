@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FCPXML Conform Tool</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem 1rem;
+        }
+
+        .container {
+            max-width: 640px;
+            width: 100%;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 0.25rem;
+        }
+
+        .subtitle {
+            color: #888;
+            font-size: 0.85rem;
+            margin-bottom: 2rem;
+        }
+
+        .upload-section {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .drop-zone {
+            border: 2px dashed #333;
+            border-radius: 8px;
+            padding: 1.25rem;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            position: relative;
+        }
+
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: #4a6fa5;
+            background: rgba(74, 111, 165, 0.08);
+        }
+
+        .drop-zone.has-file {
+            border-color: #4a9a5a;
+            background: rgba(74, 154, 90, 0.08);
+        }
+
+        .drop-zone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .drop-zone .filename {
+            font-size: 0.9rem;
+            color: #4a9a5a;
+            font-weight: 500;
+        }
+
+        .drop-zone .prompt {
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        .hint {
+            font-size: 0.75rem;
+            color: #555;
+            margin-top: 0.4rem;
+        }
+
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, opacity 0.2s;
+            margin-top: 0.5rem;
+        }
+
+        button.primary {
+            background: #4a6fa5;
+            color: #fff;
+        }
+
+        button.primary:hover:not(:disabled) {
+            background: #5a82be;
+        }
+
+        button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-top: 1rem;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            display: none;
+        }
+
+        .status.error {
+            display: block;
+            background: rgba(180, 60, 60, 0.15);
+            border: 1px solid #6a2a2a;
+            color: #e08080;
+        }
+
+        .status.success {
+            display: block;
+            background: rgba(74, 154, 90, 0.12);
+            border: 1px solid #2a5a2a;
+            color: #80c090;
+        }
+
+        .status.loading {
+            display: block;
+            background: rgba(74, 111, 165, 0.12);
+            border: 1px solid #2a3a5a;
+            color: #90b0d0;
+        }
+
+        .log-section {
+            margin-top: 1.5rem;
+            display: none;
+        }
+
+        .log-section.visible {
+            display: block;
+        }
+
+        .log-section h3 {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #666;
+            margin-bottom: 0.5rem;
+        }
+
+        .log-output {
+            background: #111;
+            border-radius: 6px;
+            padding: 0.75rem 1rem;
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.75rem;
+            line-height: 1.5;
+            color: #999;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>FCPXML Conform Tool</h1>
+        <p class="subtitle">Conform a multitrack timeline to match an edited reference print</p>
+
+        <div class="upload-section">
+            <label>Original Multitrack FCPXML</label>
+            <div class="drop-zone" id="originalZone">
+                <input type="file" accept=".fcpxml,.xml" id="originalFile">
+                <span class="prompt" id="originalPrompt">Drop file or click to browse</span>
+                <span class="filename" id="originalName" style="display:none"></span>
+            </div>
+            <p class="hint">The full multitrack timeline exported from Resolve</p>
+        </div>
+
+        <div class="upload-section">
+            <label>Edited Reference FCPXML</label>
+            <div class="drop-zone" id="editZone">
+                <input type="file" accept=".fcpxml,.xml" id="editFile">
+                <span class="prompt" id="editPrompt">Drop file or click to browse</span>
+                <span class="filename" id="editName" style="display:none"></span>
+            </div>
+            <p class="hint">The edited single-track reference print (from Resolve, Descript, etc.)</p>
+        </div>
+
+        <button class="primary" id="conformBtn" disabled>Conform Timeline</button>
+
+        <div class="status" id="status"></div>
+
+        <div class="log-section" id="logSection">
+            <h3>Conform Log</h3>
+            <div class="log-output" id="logOutput"></div>
+        </div>
+    </div>
+
+    <script>
+        const originalFile = document.getElementById('originalFile');
+        const editFile = document.getElementById('editFile');
+        const conformBtn = document.getElementById('conformBtn');
+        const status = document.getElementById('status');
+        const logSection = document.getElementById('logSection');
+        const logOutput = document.getElementById('logOutput');
+
+        let files = { original: null, edit: null };
+
+        function setupDropZone(input, zoneId, promptId, nameId, key) {
+            const zone = document.getElementById(zoneId);
+            const prompt = document.getElementById(promptId);
+            const nameEl = document.getElementById(nameId);
+
+            input.addEventListener('change', () => {
+                if (input.files.length) {
+                    files[key] = input.files[0];
+                    prompt.style.display = 'none';
+                    nameEl.style.display = 'inline';
+                    nameEl.textContent = input.files[0].name;
+                    zone.classList.add('has-file');
+                    updateButton();
+                }
+            });
+
+            zone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                zone.classList.add('dragover');
+            });
+
+            zone.addEventListener('dragleave', () => {
+                zone.classList.remove('dragover');
+            });
+
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                zone.classList.remove('dragover');
+                if (e.dataTransfer.files.length) {
+                    input.files = e.dataTransfer.files;
+                    input.dispatchEvent(new Event('change'));
+                }
+            });
+        }
+
+        setupDropZone(originalFile, 'originalZone', 'originalPrompt', 'originalName', 'original');
+        setupDropZone(editFile, 'editZone', 'editPrompt', 'editName', 'edit');
+
+        function updateButton() {
+            conformBtn.disabled = !(files.original && files.edit);
+        }
+
+        function showStatus(msg, type) {
+            status.className = 'status ' + type;
+            status.textContent = msg;
+        }
+
+        function readFileAsBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const base64 = btoa(reader.result);
+                    resolve(base64);
+                };
+                reader.onerror = reject;
+                reader.readAsBinaryString(file);
+            });
+        }
+
+        conformBtn.addEventListener('click', async () => {
+            conformBtn.disabled = true;
+            showStatus('Conforming timeline...', 'loading');
+            logSection.classList.remove('visible');
+
+            try {
+                const [originalB64, editB64] = await Promise.all([
+                    readFileAsBase64(files.original),
+                    readFileAsBase64(files.edit),
+                ]);
+
+                const response = await fetch('/api/conform', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ original: originalB64, edit: editB64 }),
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Server error');
+                }
+
+                // Show log
+                if (data.log && data.log.length) {
+                    logOutput.textContent = data.log.join('\n');
+                    logSection.classList.add('visible');
+                }
+
+                // Trigger download
+                const blob = new Blob([data.xml], { type: 'application/xml' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'conformed_output.fcpxml';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                showStatus('Done! Conformed FCPXML downloaded.', 'success');
+
+            } catch (err) {
+                showStatus('Error: ' + err.message, 'error');
+            } finally {
+                conformBtn.disabled = false;
+                updateButton();
+            }
+        });
+    </script>
+</body>
+</html>
