@@ -192,7 +192,7 @@
                 <span class="prompt" id="originalPrompt">Drop file or click to browse</span>
                 <span class="filename" id="originalName" style="display:none"></span>
             </div>
-            <p class="hint">The full multitrack timeline exported from Resolve</p>
+            <p class="hint">The full multitrack timeline exported from Resolve (.fcpxml file, not .fcpxmld bundle)</p>
         </div>
 
         <div class="upload-section">
@@ -202,7 +202,7 @@
                 <span class="prompt" id="editPrompt">Drop file or click to browse</span>
                 <span class="filename" id="editName" style="display:none"></span>
             </div>
-            <p class="hint">The edited single-track reference print (from Resolve, Descript, etc.)</p>
+            <p class="hint">The edited single-track reference (if .fcpxmld bundle, upload Info.fcpxml from inside)</p>
         </div>
 
         <button class="primary" id="conformBtn" disabled>Conform Timeline</button>
@@ -232,10 +232,23 @@
 
             input.addEventListener('change', () => {
                 if (input.files.length) {
-                    files[key] = input.files[0];
+                    const file = input.files[0];
+                    const name = file.name;
+
+                    // Warn if they selected a .fcpxmld bundle
+                    if (name.endsWith('.fcpxmld')) {
+                        showStatus(
+                            'That looks like a .fcpxmld bundle (a folder). ' +
+                            'Please open the bundle folder and upload the Info.fcpxml file inside it instead.',
+                            'error'
+                        );
+                        return;
+                    }
+
+                    files[key] = file;
                     prompt.style.display = 'none';
                     nameEl.style.display = 'inline';
-                    nameEl.textContent = input.files[0].name;
+                    nameEl.textContent = name;
                     zone.classList.add('has-file');
                     updateButton();
                 }
@@ -276,10 +289,18 @@
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = () => {
-                    const base64 = btoa(reader.result);
-                    resolve(base64);
+                    // Validate that it looks like XML
+                    const text = reader.result;
+                    if (!text.trim().startsWith('<?xml') && !text.trim().startsWith('<fcpxml')) {
+                        reject(new Error(
+                            `"${file.name}" doesn't look like an FCPXML file. ` +
+                            'If you have a .fcpxmld bundle, open the folder and upload the Info.fcpxml file inside.'
+                        ));
+                        return;
+                    }
+                    resolve(btoa(text));
                 };
-                reader.onerror = reject;
+                reader.onerror = () => reject(new Error(`Failed to read "${file.name}"`));
                 reader.readAsBinaryString(file);
             });
         }
@@ -301,12 +322,13 @@
                     body: JSON.stringify({ original: originalB64, edit: editB64 }),
                 });
 
+                // Read body as text first, then try to parse as JSON
+                const responseText = await response.text();
                 let data;
                 try {
-                    data = await response.json();
+                    data = JSON.parse(responseText);
                 } catch (parseErr) {
-                    const text = await response.text().catch(() => '');
-                    throw new Error(text || `Server returned ${response.status}`);
+                    throw new Error(responseText.substring(0, 200) || `Server returned ${response.status}`);
                 }
 
                 if (!response.ok) {
