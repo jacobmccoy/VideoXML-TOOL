@@ -301,10 +301,16 @@
                     body: JSON.stringify({ original: originalB64, edit: editB64 }),
                 });
 
-                const data = await response.json();
+                let data;
+                try {
+                    data = await response.json();
+                } catch (parseErr) {
+                    const text = await response.text().catch(() => '');
+                    throw new Error(text || `Server returned ${response.status}`);
+                }
 
                 if (!response.ok) {
-                    throw new Error(data.error || 'Server error');
+                    throw new Error(data.error || `Server error (${response.status})`);
                 }
 
                 // Show log
