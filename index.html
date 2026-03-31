@@ -394,13 +394,25 @@
                 <textarea id="llmResponseArea" rows="6" placeholder='Paste the LLM response here, e.g.: {"segments": [3, 7, 12, 1, 15], "reasoning": "..."}'></textarea>
             </div>
 
-            <!-- Step 4: Generate -->
+            <!-- Step 4: Upload original multitrack -->
+            <div class="upload-section" id="originalMultitrackSection" style="display:none">
+                <div class="section-gap"></div>
+                <div class="step-label">
+                    <span class="step-number">4</span>
+                    <span class="step-text">Upload Original Multitrack</span>
+                </div>
+                <div class="drop-zone" id="scriptOriginalZone">
+                    <input type="file" accept=".fcpxml,.xml,.zip" id="scriptOriginalFile">
+                    <span class="prompt" id="scriptOriginalPrompt">Drop multitrack FCPXML or zipped .fcpxmld</span>
+                    <span class="filename" id="scriptOriginalName" style="display:none"></span>
+                </div>
+                <p class="hint">Your full multitrack timeline exported from Resolve</p>
+            </div>
+
+            <!-- Step 5: Generate -->
             <div id="generateSection" style="display:none">
                 <div class="section-gap"></div>
-                <button class="primary" id="generateBtn">Generate Reference FCPXML</button>
-                <button class="secondary" id="sendToConformBtn" style="display:none; margin-top:0.5rem">
-                    Send to Conform Tool →
-                </button>
+                <button class="primary" id="generateBtn">Cut Multitrack</button>
             </div>
 
             <div class="status" id="scriptStatus"></div>
@@ -527,19 +539,24 @@
         const llmResponseArea = document.getElementById('llmResponseArea');
         const generateSection = document.getElementById('generateSection');
         const generateBtn = document.getElementById('generateBtn');
-        const sendToConformBtn = document.getElementById('sendToConformBtn');
         const scriptStatus = document.getElementById('scriptStatus');
         const scriptLogSection = document.getElementById('scriptLogSection');
         const scriptLogOutput = document.getElementById('scriptLogOutput');
+        const scriptOriginalFile = document.getElementById('scriptOriginalFile');
 
-        let scriptFiles = { transcript: null };
+        let scriptFiles = { transcript: null, original: null };
         let parsedData = null;
-        let generatedRefXml = null;
 
         setupDropZone(
             transcriptFile, 'transcriptZone', 'transcriptPrompt', 'transcriptName',
             'transcript', scriptFiles,
             () => { parseBtn.disabled = false; },
+            (msg, type) => showStatus(scriptStatus, msg, type)
+        );
+        setupDropZone(
+            scriptOriginalFile, 'scriptOriginalZone', 'scriptOriginalPrompt', 'scriptOriginalName',
+            'original', scriptFiles,
+            () => {},
             (msg, type) => showStatus(scriptStatus, msg, type)
         );
 
@@ -583,6 +600,7 @@
                 llmPromptArea.value = data.system_prompt + '\n\n---\n\nEDITORIAL GUIDANCE: [Add your guidance here]\n\n---\n\nTRANSCRIPT:\n\n' + data.user_prompt;
                 llmPromptSection.style.display = 'block';
                 llmResponseSection.style.display = 'block';
+                document.getElementById('originalMultitrackSection').style.display = 'block';
                 generateSection.style.display = 'block';
 
                 showStatus(scriptStatus, `Parsed ${data.num_segments} segments. Copy the prompt, add editorial guidance, and paste the LLM response.`, 'success');
@@ -607,20 +625,29 @@
                 showStatus(scriptStatus, 'Paste the LLM response first.', 'error');
                 return;
             }
+            if (!scriptFiles.original) {
+                showStatus(scriptStatus, 'Upload your original multitrack FCPXML first.', 'error');
+                return;
+            }
 
             generateBtn.disabled = true;
-            showStatus(scriptStatus, 'Generating reference FCPXML...', 'loading');
+            showStatus(scriptStatus, 'Cutting multitrack...', 'loading');
             scriptLogSection.classList.remove('visible');
 
             try {
-                const b64 = await readFileAsBase64(scriptFiles.transcript);
+                const [transcriptB64, originalB64] = await Promise.all([
+                    readFileAsBase64(scriptFiles.transcript),
+                    readFileAsBase64(scriptFiles.original),
+                ]);
+
                 const response = await fetch('/api/script-edit', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        action: 'generate',
-                        transcript: b64,
+                        action: 'direct_cut',
+                        transcript: transcriptB64,
                         selections: response_text,
+                        original: originalB64,
                     }),
                 });
 
@@ -631,11 +658,9 @@
 
                 if (!response.ok) throw new Error(data.error || `Server error (${response.status})`);
 
-                generatedRefXml = data.xml;
-
-                // Show summary
-                if (data.summary && data.summary.length) {
-                    scriptLogOutput.textContent = data.summary.join('\n');
+                // Show log
+                if (data.log && data.log.length) {
+                    scriptLogOutput.textContent = data.log.join('\n');
                     scriptLogSection.classList.add('visible');
                 }
 
@@ -644,43 +669,19 @@
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'reference_script_edit.fcpxml';
+                a.download = 'script_edit_output.fcpxml';
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
 
-                sendToConformBtn.style.display = 'block';
-                showStatus(scriptStatus, 'Reference FCPXML downloaded. Use it with the Conform tool, or click "Send to Conform Tool" below.', 'success');
+                showStatus(scriptStatus, 'Done! Multitrack edit downloaded.', 'success');
 
             } catch (err) {
                 showStatus(scriptStatus, 'Error: ' + err.message, 'error');
             } finally {
                 generateBtn.disabled = false;
             }
-        });
-
-        sendToConformBtn.addEventListener('click', () => {
-            if (!generatedRefXml) return;
-            // Switch to conform tab and set the edit file from generated XML
-            document.querySelectorAll('.tool-tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tool-panel').forEach(p => p.classList.remove('active'));
-            document.querySelector('[data-panel="conformPanel"]').classList.add('active');
-            document.getElementById('conformPanel').classList.add('active');
-
-            // Create a File object from the generated XML
-            const blob = new Blob([generatedRefXml], { type: 'application/xml' });
-            const file = new File([blob], 'reference_script_edit.fcpxml', { type: 'application/xml' });
-
-            conformFiles.edit = file;
-            document.getElementById('editPrompt').style.display = 'none';
-            const editNameEl = document.getElementById('editName');
-            editNameEl.style.display = 'inline';
-            editNameEl.textContent = 'reference_script_edit.fcpxml (from Script Editor)';
-            document.getElementById('editZone').classList.add('has-file');
-            updateConformButton();
-
-            showStatus(conformStatus, 'Reference FCPXML loaded from Script Editor. Now upload your original multitrack.', 'success');
         });
 
         // ===================== CONFORM TOOL =====================

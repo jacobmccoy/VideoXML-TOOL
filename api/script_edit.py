@@ -32,6 +32,7 @@ prepare_for_llm = _transcript.prepare_for_llm
 parse_llm_response = _transcript.parse_llm_response
 script_edit_to_fcpxml = _transcript.script_edit_to_fcpxml
 parse_transcript = _transcript.parse_transcript
+direct_cut_multitrack = _transcript.direct_cut_multitrack
 conform_from_strings = _conform_core.conform_from_strings
 
 
@@ -126,8 +127,8 @@ class handler(BaseHTTPRequestHandler):
                     'summary': summary,
                 })
 
-            elif action == 'conform':
-                # Full pipeline: transcript + selections + original → conformed
+            elif action == 'direct_cut':
+                # Direct multitrack cut from transcript segments
                 required = ['transcript', 'selections', 'original']
                 missing = [f for f in required if f not in data]
                 if missing:
@@ -151,21 +152,18 @@ class handler(BaseHTTPRequestHandler):
                     })
                     return
 
-                ref_xml, summary = script_edit_to_fcpxml(
-                    transcript_text, selected_indices)
-
                 original_xml = _extract_fcpxml(base64.b64decode(data['original']))
-                result_xml, log_lines = conform_from_strings(original_xml, ref_xml)
+                result_xml, log_lines = direct_cut_multitrack(
+                    original_xml, transcript_text, selected_indices)
 
                 _json_response(self, 200, {
                     'xml': result_xml,
                     'log': log_lines,
-                    'script_edit_summary': summary,
                 })
 
             else:
                 _json_response(self, 400, {
-                    'error': f'Unknown action: "{action}". Use "parse", "generate", or "conform".'
+                    'error': f'Unknown action: "{action}". Use "parse", "generate", or "direct_cut".'
                 })
 
         except json.JSONDecodeError as e:

@@ -30,8 +30,8 @@ from lib.transcript import (
     format_for_llm,
     parse_llm_response,
     generate_reference_fcpxml,
+    direct_cut_multitrack,
 )
-from lib.conform_core import conform_from_strings
 
 
 def resolve_fcpxml_path(path):
@@ -115,35 +115,35 @@ def main():
     if reasoning:
         print(f"Reasoning: {reasoning}")
 
-    # Generate reference FCPXML
-    ref_xml, summary_lines = generate_reference_fcpxml(segments, selected_indices)
-
-    print("\nGenerated reference FCPXML:")
-    for line in summary_lines:
-        print(f"  {line}")
-
-    # Full pipeline mode (with --original)
+    # Direct multitrack cut (with --original)
     if args.original:
         orig_path = resolve_fcpxml_path(args.original)
-        print(f"\nRunning conform pipeline with original: {orig_path}")
+        print(f"\nCutting multitrack directly from: {orig_path}")
 
         with open(orig_path, 'r', encoding='utf-8') as f:
             original_xml = f.read()
 
-        result_xml, log_lines = conform_from_strings(original_xml, ref_xml)
+        result_xml, log_lines = direct_cut_multitrack(
+            original_xml, transcript_text, selected_indices)
 
-        print("\nConform log:")
+        print("\nCut log:")
         for line in log_lines:
             print(f"  {line}")
 
-        output_path = args.output or 'conformed_script_edit.fcpxml'
+        output_path = args.output or 'script_edit_output.fcpxml'
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(result_xml)
 
-        print(f"\nConformed output written to: {output_path}")
+        print(f"\nMultitrack edit written to: {output_path}")
 
     else:
-        # Just output the reference FCPXML
+        # Reference-only mode (no original provided)
+        ref_xml, summary_lines = generate_reference_fcpxml(segments, selected_indices)
+
+        print("\nGenerated reference FCPXML:")
+        for line in summary_lines:
+            print(f"  {line}")
+
         output_path = args.output or 'reference_script_edit.fcpxml'
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(ref_xml)
