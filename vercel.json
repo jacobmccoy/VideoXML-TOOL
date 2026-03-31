@@ -1,5 +1,6 @@
 {
   "rewrites": [
-    { "source": "/api/conform", "destination": "/api/conform" }
+    { "source": "/api/conform", "destination": "/api/conform" },
+    { "source": "/api/script-edit", "destination": "/api/script_edit" }
   ]
 }

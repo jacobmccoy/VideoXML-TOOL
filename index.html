@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FCPXML Conform Tool</title>
+    <title>FCPXML Tools — Conform & Script Editor</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -178,137 +178,294 @@
             overflow-y: auto;
             white-space: pre-wrap;
         }
+
+        .tool-tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 2rem;
+            border-bottom: 2px solid #2a2a4a;
+        }
+
+        .tool-tab {
+            width: auto;
+            padding: 0.6rem 1.25rem;
+            background: none;
+            border: none;
+            border-radius: 0;
+            margin: 0;
+            color: #666;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: color 0.2s, border-color 0.2s;
+        }
+
+        .tool-tab:hover:not(:disabled) {
+            color: #aaa;
+        }
+
+        .tool-tab.active {
+            color: #fff;
+            border-bottom-color: #4a6fa5;
+        }
+
+        .tool-panel {
+            display: none;
+        }
+
+        .tool-panel.active {
+            display: block;
+        }
+
+        textarea {
+            width: 100%;
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 6px;
+            color: #ccc;
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.75rem;
+            line-height: 1.5;
+            padding: 0.75rem 1rem;
+            resize: vertical;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #4a6fa5;
+        }
+
+        .segments-list {
+            background: #111;
+            border-radius: 6px;
+            padding: 0.75rem 1rem;
+            max-height: 400px;
+            overflow-y: auto;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            color: #999;
+            display: none;
+        }
+
+        .segments-list.visible {
+            display: block;
+        }
+
+        .segment-item {
+            padding: 0.4rem 0;
+            border-bottom: 1px solid #1a1a1a;
+        }
+
+        .segment-index {
+            color: #4a6fa5;
+            font-weight: 600;
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+        }
+
+        .segment-tc {
+            color: #666;
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.7rem;
+        }
+
+        .segment-speaker {
+            color: #aaa;
+            font-weight: 500;
+        }
+
+        .segment-text {
+            color: #777;
+            font-size: 0.75rem;
+        }
+
+        .copy-btn {
+            width: auto;
+            display: inline-block;
+            padding: 0.35rem 0.75rem;
+            font-size: 0.75rem;
+            background: #2a2a4a;
+            color: #aaa;
+            border-radius: 4px;
+            margin-top: 0;
+            margin-left: 0.5rem;
+        }
+
+        .copy-btn:hover:not(:disabled) {
+            background: #3a3a5a;
+        }
+
+        .step-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1.5rem;
+            height: 1.5rem;
+            border-radius: 50%;
+            background: #2a2a4a;
+            color: #4a6fa5;
+            font-size: 0.7rem;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .step-text {
+            font-size: 0.8rem;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 500;
+        }
+
+        .section-gap {
+            height: 1.5rem;
+        }
+
+        button.secondary {
+            background: #2a3a4a;
+            color: #90b0d0;
+        }
+
+        button.secondary:hover:not(:disabled) {
+            background: #3a4a5a;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>FCPXML Conform Tool</h1>
-        <p class="subtitle">Conform a multitrack timeline to match an edited reference print</p>
+        <h1>FCPXML Tools</h1>
+        <p class="subtitle">Script editing & timeline conforming for multitrack video</p>
 
-        <div class="upload-section">
-            <label>Original Multitrack FCPXML</label>
-            <div class="drop-zone" id="originalZone">
-                <input type="file" accept=".fcpxml,.xml,.zip" id="originalFile">
-                <span class="prompt" id="originalPrompt">Drop file or click to browse</span>
-                <span class="filename" id="originalName" style="display:none"></span>
-            </div>
-            <p class="hint">Export from Resolve as .fcpxml, or zip the .fcpxmld bundle and upload the .zip</p>
+        <div class="tool-tabs">
+            <button class="tool-tab active" data-panel="scriptPanel">Script Editor</button>
+            <button class="tool-tab" data-panel="conformPanel">Conform Tool</button>
         </div>
 
-        <div class="upload-section">
-            <label>Edited Reference FCPXML</label>
-            <div class="drop-zone" id="editZone">
-                <input type="file" accept=".fcpxml,.xml,.zip" id="editFile">
-                <span class="prompt" id="editPrompt">Drop file or click to browse</span>
-                <span class="filename" id="editName" style="display:none"></span>
+        <!-- ======================== SCRIPT EDITOR PANEL ======================== -->
+        <div class="tool-panel active" id="scriptPanel">
+
+            <!-- Step 1: Upload transcript -->
+            <div class="upload-section">
+                <div class="step-label">
+                    <span class="step-number">1</span>
+                    <span class="step-text">Upload Transcript</span>
+                </div>
+                <div class="drop-zone" id="transcriptZone">
+                    <input type="file" accept=".txt" id="transcriptFile">
+                    <span class="prompt" id="transcriptPrompt">Drop .txt transcript or click to browse</span>
+                    <span class="filename" id="transcriptName" style="display:none"></span>
+                </div>
+                <p class="hint">Timestamped transcript from Resolve (format: [HH:MM:SS:FF - HH:MM:SS:FF])</p>
             </div>
-            <p class="hint">The edited reference print (.fcpxml, or zipped .fcpxmld bundle)</p>
+
+            <button class="primary" id="parseBtn" disabled>Parse Transcript</button>
+
+            <!-- Parsed segments display -->
+            <div class="section-gap"></div>
+            <div class="segments-list" id="segmentsList"></div>
+
+            <!-- Step 2: LLM prompt -->
+            <div class="upload-section" id="llmPromptSection" style="display:none">
+                <div class="section-gap"></div>
+                <div class="step-label">
+                    <span class="step-number">2</span>
+                    <span class="step-text">Copy prompt to your LLM</span>
+                    <button class="copy-btn" id="copyPromptBtn">Copy</button>
+                </div>
+                <textarea id="llmPromptArea" rows="8" readonly></textarea>
+                <p class="hint">Paste this into Claude, ChatGPT, etc. along with your editorial guidance (e.g., "Select the best segments about detuned glass, reorder to build a narrative arc")</p>
+            </div>
+
+            <!-- Step 3: Paste LLM response -->
+            <div class="upload-section" id="llmResponseSection" style="display:none">
+                <div class="section-gap"></div>
+                <div class="step-label">
+                    <span class="step-number">3</span>
+                    <span class="step-text">Paste LLM response</span>
+                </div>
+                <textarea id="llmResponseArea" rows="6" placeholder='Paste the LLM response here, e.g.: {"segments": [3, 7, 12, 1, 15], "reasoning": "..."}'></textarea>
+            </div>
+
+            <!-- Step 4: Generate -->
+            <div id="generateSection" style="display:none">
+                <div class="section-gap"></div>
+                <button class="primary" id="generateBtn">Generate Reference FCPXML</button>
+                <button class="secondary" id="sendToConformBtn" style="display:none; margin-top:0.5rem">
+                    Send to Conform Tool →
+                </button>
+            </div>
+
+            <div class="status" id="scriptStatus"></div>
+
+            <div class="log-section" id="scriptLogSection">
+                <h3>Script Edit Summary</h3>
+                <div class="log-output" id="scriptLogOutput"></div>
+            </div>
         </div>
 
-        <button class="primary" id="conformBtn" disabled>Conform Timeline</button>
+        <!-- ======================== CONFORM TOOL PANEL ======================== -->
+        <div class="tool-panel" id="conformPanel">
 
-        <div class="status" id="status"></div>
+            <div class="upload-section">
+                <label>Original Multitrack FCPXML</label>
+                <div class="drop-zone" id="originalZone">
+                    <input type="file" accept=".fcpxml,.xml,.zip" id="originalFile">
+                    <span class="prompt" id="originalPrompt">Drop file or click to browse</span>
+                    <span class="filename" id="originalName" style="display:none"></span>
+                </div>
+                <p class="hint">Export from Resolve as .fcpxml, or zip the .fcpxmld bundle and upload the .zip</p>
+            </div>
 
-        <div class="log-section" id="logSection">
-            <h3>Conform Log</h3>
-            <div class="log-output" id="logOutput"></div>
+            <div class="upload-section">
+                <label>Edited Reference FCPXML</label>
+                <div class="drop-zone" id="editZone">
+                    <input type="file" accept=".fcpxml,.xml,.zip" id="editFile">
+                    <span class="prompt" id="editPrompt">Drop file or click to browse</span>
+                    <span class="filename" id="editName" style="display:none"></span>
+                </div>
+                <p class="hint">The edited reference print (.fcpxml, or zipped .fcpxmld bundle)</p>
+            </div>
+
+            <button class="primary" id="conformBtn" disabled>Conform Timeline</button>
+
+            <div class="status" id="conformStatus"></div>
+
+            <div class="log-section" id="logSection">
+                <h3>Conform Log</h3>
+                <div class="log-output" id="logOutput"></div>
+            </div>
         </div>
     </div>
 
     <script>
-        const originalFile = document.getElementById('originalFile');
-        const editFile = document.getElementById('editFile');
-        const conformBtn = document.getElementById('conformBtn');
-        const status = document.getElementById('status');
-        const logSection = document.getElementById('logSection');
-        const logOutput = document.getElementById('logOutput');
-
-        let files = { original: null, edit: null };
-
-        function setupDropZone(input, zoneId, promptId, nameId, key) {
-            const zone = document.getElementById(zoneId);
-            const prompt = document.getElementById(promptId);
-            const nameEl = document.getElementById(nameId);
-
-            input.addEventListener('change', () => {
-                if (input.files.length) {
-                    const file = input.files[0];
-                    const name = file.name;
-
-                    // Warn if they selected a .fcpxmld bundle
-                    if (name.endsWith('.fcpxmld')) {
-                        showStatus(
-                            'That looks like a .fcpxmld bundle (a folder). ' +
-                            'Please open the bundle folder and upload the Info.fcpxml file inside it instead.',
-                            'error'
-                        );
-                        return;
-                    }
-
-                    files[key] = file;
-                    prompt.style.display = 'none';
-                    nameEl.style.display = 'inline';
-                    nameEl.textContent = name;
-                    zone.classList.add('has-file');
-                    updateButton();
-                }
+        // ===================== TAB SWITCHING =====================
+        document.querySelectorAll('.tool-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tool-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tool-panel').forEach(p => p.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.panel).classList.add('active');
             });
+        });
 
-            zone.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                zone.classList.add('dragover');
-            });
-
-            zone.addEventListener('dragleave', () => {
-                zone.classList.remove('dragover');
-            });
-
-            zone.addEventListener('drop', (e) => {
-                e.preventDefault();
-                zone.classList.remove('dragover');
-                if (e.dataTransfer.files.length) {
-                    input.files = e.dataTransfer.files;
-                    input.dispatchEvent(new Event('change'));
-                }
-            });
-        }
-
-        setupDropZone(originalFile, 'originalZone', 'originalPrompt', 'originalName', 'original');
-        setupDropZone(editFile, 'editZone', 'editPrompt', 'editName', 'edit');
-
-        function updateButton() {
-            conformBtn.disabled = !(files.original && files.edit);
-        }
-
-        function showStatus(msg, type) {
-            status.className = 'status ' + type;
-            status.textContent = msg;
-        }
-
+        // ===================== SHARED UTILITIES =====================
         function readFileAsBase64(file) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = () => {
                     const bytes = new Uint8Array(reader.result);
                     if (bytes.length === 0) {
-                        reject(new Error(
-                            `"${file.name}" is empty. If this is a .fcpxmld bundle, ` +
-                            'zip it first and upload the .zip file.'
-                        ));
+                        reject(new Error(`"${file.name}" is empty.`));
                         return;
                     }
-                    // Check for zip (PK magic bytes) or XML
-                    const isZip = bytes[0] === 0x50 && bytes[1] === 0x4B;
-                    const textStart = new TextDecoder().decode(bytes.slice(0, 100)).trim();
-                    const isXml = textStart.startsWith('<?xml') || textStart.startsWith('<fcpxml');
-                    if (!isZip && !isXml) {
-                        reject(new Error(
-                            `"${file.name}" doesn't look like an FCPXML or zip file. ` +
-                            'If you have a .fcpxmld bundle, zip it first and upload the .zip.'
-                        ));
-                        return;
-                    }
-                    // Convert ArrayBuffer to base64
                     let binary = '';
                     for (let i = 0; i < bytes.length; i++) {
                         binary += String.fromCharCode(bytes[i]);
@@ -320,15 +477,246 @@
             });
         }
 
+        function setupDropZone(input, zoneId, promptId, nameId, key, store, onReady, statusFn, validExts) {
+            const zone = document.getElementById(zoneId);
+            const prompt = document.getElementById(promptId);
+            const nameEl = document.getElementById(nameId);
+
+            input.addEventListener('change', () => {
+                if (input.files.length) {
+                    const file = input.files[0];
+                    const name = file.name;
+                    if (name.endsWith('.fcpxmld')) {
+                        statusFn('That looks like a .fcpxmld bundle (a folder). Zip it first.', 'error');
+                        return;
+                    }
+                    store[key] = file;
+                    prompt.style.display = 'none';
+                    nameEl.style.display = 'inline';
+                    nameEl.textContent = name;
+                    zone.classList.add('has-file');
+                    if (onReady) onReady();
+                }
+            });
+
+            zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
+            zone.addEventListener('dragleave', () => { zone.classList.remove('dragover'); });
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                zone.classList.remove('dragover');
+                if (e.dataTransfer.files.length) {
+                    input.files = e.dataTransfer.files;
+                    input.dispatchEvent(new Event('change'));
+                }
+            });
+        }
+
+        function showStatus(el, msg, type) {
+            el.className = 'status ' + type;
+            el.textContent = msg;
+        }
+
+        // ===================== SCRIPT EDITOR =====================
+        const transcriptFile = document.getElementById('transcriptFile');
+        const parseBtn = document.getElementById('parseBtn');
+        const segmentsList = document.getElementById('segmentsList');
+        const llmPromptSection = document.getElementById('llmPromptSection');
+        const llmPromptArea = document.getElementById('llmPromptArea');
+        const copyPromptBtn = document.getElementById('copyPromptBtn');
+        const llmResponseSection = document.getElementById('llmResponseSection');
+        const llmResponseArea = document.getElementById('llmResponseArea');
+        const generateSection = document.getElementById('generateSection');
+        const generateBtn = document.getElementById('generateBtn');
+        const sendToConformBtn = document.getElementById('sendToConformBtn');
+        const scriptStatus = document.getElementById('scriptStatus');
+        const scriptLogSection = document.getElementById('scriptLogSection');
+        const scriptLogOutput = document.getElementById('scriptLogOutput');
+
+        let scriptFiles = { transcript: null };
+        let parsedData = null;
+        let generatedRefXml = null;
+
+        setupDropZone(
+            transcriptFile, 'transcriptZone', 'transcriptPrompt', 'transcriptName',
+            'transcript', scriptFiles,
+            () => { parseBtn.disabled = false; },
+            (msg, type) => showStatus(scriptStatus, msg, type)
+        );
+
+        parseBtn.addEventListener('click', async () => {
+            parseBtn.disabled = true;
+            showStatus(scriptStatus, 'Parsing transcript...', 'loading');
+            scriptLogSection.classList.remove('visible');
+
+            try {
+                const b64 = await readFileAsBase64(scriptFiles.transcript);
+                const response = await fetch('/api/script-edit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'parse', transcript: b64 }),
+                });
+
+                const responseText = await response.text();
+                let data;
+                try { data = JSON.parse(responseText); }
+                catch { throw new Error(responseText.substring(0, 200) || `Server returned ${response.status}`); }
+
+                if (!response.ok) throw new Error(data.error || `Server error (${response.status})`);
+
+                parsedData = data;
+
+                // Display segments
+                let html = '';
+                for (const seg of data.segments) {
+                    const preview = seg.text.length > 120 ? seg.text.substring(0, 120) + '...' : seg.text;
+                    html += `<div class="segment-item">
+                        <span class="segment-index">[${seg.index}]</span>
+                        <span class="segment-tc">${seg.tc_in} - ${seg.tc_out}</span>
+                        <span class="segment-speaker">${seg.speaker}</span><br>
+                        <span class="segment-text">${preview}</span>
+                    </div>`;
+                }
+                segmentsList.innerHTML = html;
+                segmentsList.classList.add('visible');
+
+                // Show LLM prompt
+                llmPromptArea.value = data.system_prompt + '\n\n---\n\nEDITORIAL GUIDANCE: [Add your guidance here]\n\n---\n\nTRANSCRIPT:\n\n' + data.user_prompt;
+                llmPromptSection.style.display = 'block';
+                llmResponseSection.style.display = 'block';
+                generateSection.style.display = 'block';
+
+                showStatus(scriptStatus, `Parsed ${data.num_segments} segments. Copy the prompt, add editorial guidance, and paste the LLM response.`, 'success');
+
+            } catch (err) {
+                showStatus(scriptStatus, 'Error: ' + err.message, 'error');
+            } finally {
+                parseBtn.disabled = false;
+            }
+        });
+
+        copyPromptBtn.addEventListener('click', () => {
+            llmPromptArea.select();
+            navigator.clipboard.writeText(llmPromptArea.value);
+            copyPromptBtn.textContent = 'Copied!';
+            setTimeout(() => { copyPromptBtn.textContent = 'Copy'; }, 2000);
+        });
+
+        generateBtn.addEventListener('click', async () => {
+            const response_text = llmResponseArea.value.trim();
+            if (!response_text) {
+                showStatus(scriptStatus, 'Paste the LLM response first.', 'error');
+                return;
+            }
+
+            generateBtn.disabled = true;
+            showStatus(scriptStatus, 'Generating reference FCPXML...', 'loading');
+            scriptLogSection.classList.remove('visible');
+
+            try {
+                const b64 = await readFileAsBase64(scriptFiles.transcript);
+                const response = await fetch('/api/script-edit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'generate',
+                        transcript: b64,
+                        selections: response_text,
+                    }),
+                });
+
+                const respText = await response.text();
+                let data;
+                try { data = JSON.parse(respText); }
+                catch { throw new Error(respText.substring(0, 200) || `Server returned ${response.status}`); }
+
+                if (!response.ok) throw new Error(data.error || `Server error (${response.status})`);
+
+                generatedRefXml = data.xml;
+
+                // Show summary
+                if (data.summary && data.summary.length) {
+                    scriptLogOutput.textContent = data.summary.join('\n');
+                    scriptLogSection.classList.add('visible');
+                }
+
+                // Trigger download
+                const blob = new Blob([data.xml], { type: 'application/xml' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'reference_script_edit.fcpxml';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                sendToConformBtn.style.display = 'block';
+                showStatus(scriptStatus, 'Reference FCPXML downloaded. Use it with the Conform tool, or click "Send to Conform Tool" below.', 'success');
+
+            } catch (err) {
+                showStatus(scriptStatus, 'Error: ' + err.message, 'error');
+            } finally {
+                generateBtn.disabled = false;
+            }
+        });
+
+        sendToConformBtn.addEventListener('click', () => {
+            if (!generatedRefXml) return;
+            // Switch to conform tab and set the edit file from generated XML
+            document.querySelectorAll('.tool-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tool-panel').forEach(p => p.classList.remove('active'));
+            document.querySelector('[data-panel="conformPanel"]').classList.add('active');
+            document.getElementById('conformPanel').classList.add('active');
+
+            // Create a File object from the generated XML
+            const blob = new Blob([generatedRefXml], { type: 'application/xml' });
+            const file = new File([blob], 'reference_script_edit.fcpxml', { type: 'application/xml' });
+
+            conformFiles.edit = file;
+            document.getElementById('editPrompt').style.display = 'none';
+            const editNameEl = document.getElementById('editName');
+            editNameEl.style.display = 'inline';
+            editNameEl.textContent = 'reference_script_edit.fcpxml (from Script Editor)';
+            document.getElementById('editZone').classList.add('has-file');
+            updateConformButton();
+
+            showStatus(conformStatus, 'Reference FCPXML loaded from Script Editor. Now upload your original multitrack.', 'success');
+        });
+
+        // ===================== CONFORM TOOL =====================
+        const originalFile = document.getElementById('originalFile');
+        const editFile = document.getElementById('editFile');
+        const conformBtn = document.getElementById('conformBtn');
+        const conformStatus = document.getElementById('conformStatus');
+        const logSection = document.getElementById('logSection');
+        const logOutput = document.getElementById('logOutput');
+
+        let conformFiles = { original: null, edit: null };
+
+        function updateConformButton() {
+            conformBtn.disabled = !(conformFiles.original && conformFiles.edit);
+        }
+
+        setupDropZone(
+            originalFile, 'originalZone', 'originalPrompt', 'originalName',
+            'original', conformFiles, updateConformButton,
+            (msg, type) => showStatus(conformStatus, msg, type)
+        );
+        setupDropZone(
+            editFile, 'editZone', 'editPrompt', 'editName',
+            'edit', conformFiles, updateConformButton,
+            (msg, type) => showStatus(conformStatus, msg, type)
+        );
+
         conformBtn.addEventListener('click', async () => {
             conformBtn.disabled = true;
-            showStatus('Conforming timeline...', 'loading');
+            showStatus(conformStatus, 'Conforming timeline...', 'loading');
             logSection.classList.remove('visible');
 
             try {
                 const [originalB64, editB64] = await Promise.all([
-                    readFileAsBase64(files.original),
-                    readFileAsBase64(files.edit),
+                    readFileAsBase64(conformFiles.original),
+                    readFileAsBase64(conformFiles.edit),
                 ]);
 
                 const response = await fetch('/api/conform', {
@@ -337,26 +725,18 @@
                     body: JSON.stringify({ original: originalB64, edit: editB64 }),
                 });
 
-                // Read body as text first, then try to parse as JSON
                 const responseText = await response.text();
                 let data;
-                try {
-                    data = JSON.parse(responseText);
-                } catch (parseErr) {
-                    throw new Error(responseText.substring(0, 200) || `Server returned ${response.status}`);
-                }
+                try { data = JSON.parse(responseText); }
+                catch { throw new Error(responseText.substring(0, 200) || `Server returned ${response.status}`); }
 
-                if (!response.ok) {
-                    throw new Error(data.error || `Server error (${response.status})`);
-                }
+                if (!response.ok) throw new Error(data.error || `Server error (${response.status})`);
 
-                // Show log
                 if (data.log && data.log.length) {
                     logOutput.textContent = data.log.join('\n');
                     logSection.classList.add('visible');
                 }
 
-                // Trigger download
                 const blob = new Blob([data.xml], { type: 'application/xml' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -367,13 +747,13 @@
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
 
-                showStatus('Done! Conformed FCPXML downloaded.', 'success');
+                showStatus(conformStatus, 'Done! Conformed FCPXML downloaded.', 'success');
 
             } catch (err) {
-                showStatus('Error: ' + err.message, 'error');
+                showStatus(conformStatus, 'Error: ' + err.message, 'error');
             } finally {
                 conformBtn.disabled = false;
-                updateButton();
+                updateConformButton();
             }
         });
     </script>
