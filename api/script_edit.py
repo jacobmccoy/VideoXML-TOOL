@@ -10,26 +10,20 @@ import json
 import os
 import traceback
 
-# Load transcript module via importlib to avoid sys.path issues on Vercel
-_transcript_path = os.path.join(os.path.dirname(__file__), "..", "lib", "transcript.py")
+# Load modules via importlib to avoid sys.path issues on Vercel.
+# conform_core must be loaded first and registered in sys.modules
+# so transcript.py can import it.
+import sys
 
-# First load conform_core (dependency of transcript)
-_core_path = os.path.join(os.path.dirname(__file__), "..", "lib", "conform_core.py")
+_lib_dir = os.path.join(os.path.dirname(__file__), "..", "lib")
+
+_core_path = os.path.join(_lib_dir, "conform_core.py")
 _core_spec = importlib.util.spec_from_file_location("conform_core", _core_path)
 _conform_core = importlib.util.module_from_spec(_core_spec)
 _core_spec.loader.exec_module(_conform_core)
+sys.modules['conform_core'] = _conform_core
 
-# Now load transcript, injecting conform_core as its dependency
-import sys
-sys.modules['lib.conform_core'] = _conform_core
-# Create a fake 'lib' package so relative imports work
-import types
-if 'lib' not in sys.modules:
-    lib_pkg = types.ModuleType('lib')
-    lib_pkg.__path__ = [os.path.join(os.path.dirname(__file__), "..", "lib")]
-    sys.modules['lib'] = lib_pkg
-sys.modules['lib'].conform_core = _conform_core
-
+_transcript_path = os.path.join(_lib_dir, "transcript.py")
 _transcript_spec = importlib.util.spec_from_file_location("transcript", _transcript_path)
 _transcript = importlib.util.module_from_spec(_transcript_spec)
 _transcript_spec.loader.exec_module(_transcript)
@@ -38,8 +32,6 @@ prepare_for_llm = _transcript.prepare_for_llm
 parse_llm_response = _transcript.parse_llm_response
 script_edit_to_fcpxml = _transcript.script_edit_to_fcpxml
 parse_transcript = _transcript.parse_transcript
-
-# Also load conform_from_strings for full pipeline mode
 conform_from_strings = _conform_core.conform_from_strings
 
 

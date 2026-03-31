@@ -11,7 +11,10 @@ import re
 import xml.etree.ElementTree as ET
 from fractions import Fraction
 
-from .conform_core import to_time_str, frac_to_tc
+try:
+    from .conform_core import to_time_str, frac_to_tc
+except ImportError:
+    from conform_core import to_time_str, frac_to_tc
 
 
 # ---------------------------------------------------------------------------
